@@ -6,7 +6,7 @@ In Proceedings of the AAAI Conference on Artificial Intelligence, 2024
 
 \[[Paper](https://ojs.aaai.org/index.php/AAAI/article/view/28110)\] \[[Poster](assets/edgenet-aaai-poster.pdf)\]
 
-<img src="assets/edgenet-diagram.png" alt="EdgeNet Diagram" height="400" style="display: block; margin: auto;">
+<center><img src="assets/edgenet-diagram.png" alt="EdgeNet Diagram" height="400" style="display: block; margin: auto;"></center>
 
 ## Abstract
 
@@ -22,11 +22,13 @@ pip install opencv-python==4.8.0.74
 
 ## Usage
 
+**Build model**
 ```python
 import torch
 
 from PIL import Image
 from timm.models import create_model
+from timm.data import transforms as timm_transforms
 from torchvision import transforms
 
 from config import Config
@@ -65,6 +67,22 @@ model = create_model(
     **model_kwargs,
 )
 
+train_transforms = transforms.Compose([
+    timm_transforms.RandomResizedCropAndInterpolation(
+        size=(224, 224),
+        scale=(0.08, 1.0),
+        ratio=(0.75, 1.3333),
+        interpolation='random',
+    ),
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.ColorJitter(
+        brightness=[0.6, 1.4],
+        contrast=[0.6, 1.4],
+        saturation=[0.6, 1.4],
+    ),
+    transforms.ToTensor(),
+])
+
 eval_transforms = transforms.Compose([
     transforms.Resize(
         size=248,
@@ -76,14 +94,18 @@ eval_transforms = transforms.Compose([
     transforms.ToTensor(),
 ])
 
-model.eval_transforms_norm = transforms.Compose([
+"""
+NOTE: Normalization is included in the model for the convenience of the attack.
+"""
+
+model.train_transforms_norm = model.eval_transforms_norm = transforms.Compose([
     transforms.Normalize(
         mean=torch.tensor([0.5000, 0.5000, 0.5000]),
         std=torch.tensor([0.5000, 0.5000, 0.5000]),
     )
 ])
 
-model.eval_transforms_norm_c = transforms.Compose([
+model.train_transforms_norm_c = model.eval_transforms_norm_c = transforms.Compose([
     transforms.Normalize(
         mean=torch.tensor([0.5000]),
         std=torch.tensor([0.5000]),
@@ -91,12 +113,39 @@ model.eval_transforms_norm_c = transforms.Compose([
 ])
 
 if torch.cuda.is_available():
-    print('cuda')
+    print('use cuda')
     model.to('cuda')
+```
+
+**Training forward example**
+```python
+model.train()
+
+# get data
+image_PIL = Image.open('data/train/n02087394_103.JPEG')
+image_PIL = image_PIL.convert("RGB")
+image_tensor = train_transforms(image_PIL)
+
+# forward
+image_with_edge = edge_fn(image_tensor)
+image_with_edge = image_with_edge.unsqueeze(0)
+
+x, edge = image_with_edge[:, :3], image_with_edge[:, 3:]
+
+print(x.size(), edge.size())
+# expect: 'torch.Size([1, 3, 224, 224]) torch.Size([1, 1, 224, 224])'
+
+output = model(x, edge)
+print(output.size())
+# expect: 'torch.Size([1, 1000])'
+```
+
+**Evaluation forward example**
+```python
 model.eval()
 
 # get data
-image_PIL = Image.open('ILSVRC2012_val_00000077.JPEG')
+image_PIL = Image.open('data/val/ILSVRC2012_val_00000077.JPEG')
 image_PIL = image_PIL.convert("RGB")
 image_tensor = eval_transforms(image_PIL)
 
@@ -113,7 +162,9 @@ print(output.size())
 # expect: 'torch.Size([1, 1000])'
 ```
 
-<img src="assets/edge-samples.png" alt="Edge Samples" height="400" style="display: block; margin: auto;">
+**Canny edge detector**
+
+<center><img src="assets/edge-samples.png" alt="Edge Samples" height="400" style="display: block; margin: auto;"></center>
 
 ## Citation
 ```
