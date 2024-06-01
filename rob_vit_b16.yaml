@@ -1,0 +1,21 @@
+# Edge detection
+canny_threshold_auto: True
+canny_threshold_lower: 30
+canny_threshold_upper: 100
+
+# Model
+model: 'robust_vit_base_patch16_224'
+pretrained: True
+start_index: 0
+interval: 3
+zero_conv_channel: 768
+
+# Model parameters
+initial_checkpoint: ''
+torchscript: False
+num_classes: 1000
+drop: 0.0
+drop_path: null
+bn_momentum: null
+bn_eps: null
+gp: null
